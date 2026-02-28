@@ -86,9 +86,17 @@ class PhishingDetector:
                 if len(body) < 20:
                     print(f"\nΓÜá WARNING: Body too short after cleaning - may indicate preprocessing issue")
                 
-                if original_sender and self.is_whitelisted(original_sender):
+# Check both the direct SMTP sender and any detected forwarded
+                # original sender against the whitelist.
+                whitelisted_address = None
+                if self.is_whitelisted(sender):
+                    whitelisted_address = sender
+                elif original_sender and self.is_whitelisted(original_sender):
+                    whitelisted_address = original_sender
+
+                if whitelisted_address:
                     print(f"\n[WHITELIST CHECK]")
-                    print(f"Γ£ô Domain whitelisted - skipping model")
+                    print(f"✔ Domain whitelisted ({whitelisted_address}) - skipping model")
                     result = {
                         'label': 'legitimate',
                         'probability': 1.0,
@@ -97,7 +105,7 @@ class PhishingDetector:
                 else:
                     if original_sender:
                         print(f"\n[WHITELIST CHECK]")
-                        print(f"Γ£ù Domain not whitelisted - running model")
+                        print(f"✘ Domain not whitelisted - running model")
                     
                     result = self.classify_email(subject, body)
                     result['reason'] = 'model_prediction'
