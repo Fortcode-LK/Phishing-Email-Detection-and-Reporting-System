@@ -85,9 +85,7 @@ class PhishingDetector:
                 
                 if len(body) < 20:
                     print(f"\nΓÜá WARNING: Body too short after cleaning - may indicate preprocessing issue")
-                
-# Check both the direct SMTP sender and any detected forwarded
-                # original sender against the whitelist.
+
                 whitelisted_address = None
                 if self.is_whitelisted(sender):
                     whitelisted_address = sender

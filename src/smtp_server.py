@@ -22,7 +22,6 @@ DB_MANAGER: Optional[DatabaseManager] = None
 DETECTOR: Optional[PhishingDetector] = None
 MODEL_VERSION: str = "unknown"
 
-# Auto-reply configuration — populated by main() from CLI args.
 REPLY_CFG: dict = {
     "enabled": False,
     "host": "localhost",
@@ -90,7 +89,6 @@ def send_scan_reply(
         verdict_line = f"✔  Safe  ({100 - pct:.0f}% confidence)"
         action_line  = "No threats were detected in this email."
 
-    # Include original subject so the user knows which email was scanned.
     scanned_subject = original_subject.strip() if original_subject else "(no subject)"
 
     body = (
@@ -115,7 +113,7 @@ def send_scan_reply(
         with smtplib.SMTP(REPLY_CFG["host"], REPLY_CFG["port"], timeout=10) as relay:
             relay.sendmail(REPLY_CFG["from_addr"], [to_addr], msg.as_bytes())
         print(f"REPLY     sent to {to_addr}")
-    except Exception as exc:  # never crash the pipeline over a reply failure
+    except Exception as exc:
         print(f"REPLY     FAILED to {to_addr}: {exc}")
 
 
@@ -123,33 +121,24 @@ def handle_smtp_email(sender_email, recipients, raw_message):
     if DB_MANAGER is None or DETECTOR is None:
         raise RuntimeError("SMTP server not initialized")
 
-    # ── 1. Validate user ─────────────────────────────────────────────────────
     user = DB_MANAGER.get_user_by_email_hash(hash_email(sender_email))
     if not user:
         print(f"DISCARDED: Unregistered sender {sender_email}")
-        return "250 OK"
+        return "550 Rejected - sender not registered"
 
-    # ── 2. Preprocess ────────────────────────────────────────────────────────
     extracted = DETECTOR.preprocess_email(raw_message)
     if not extracted:
         print(f"DISCARDED: Failed preprocessing for user_id={user.id}")
-        return "550 Unable to process message"
+        return "550 Rejected - message could not be parsed"
 
     original_sender = extracted.get("original_sender")
     original_domain = get_sender_domain(original_sender) if original_sender else None
 
-    # The architecture is auto-forwarding: users forward their inbox to this server.
-    # So the SMTP envelope sender is always the user's own forwarding address, NOT
-    # the email's true origin.  The true origin is original_sender (parsed from the
-    # forwarded headers).  Only fall back to the envelope sender for direct delivery
-    # (i.e. no forwarding headers were found).
     check_address = original_sender if original_sender else sender_email
     check_domain  = original_domain if original_domain else get_sender_domain(sender_email)
 
     message_id_hash = _message_id_hash(raw_message)
 
-    # ── 3. Log email event ───────────────────────────────────────────────────
-    # Record the true origin domain (original for forwarded, envelope for direct).
     email_event = DB_MANAGER.log_email_event(
         user_id=user.id,
         sender_domain=check_domain,
@@ -157,9 +146,6 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         message_id_hash=message_id_hash,
     )
 
-    # ── 4. Trusted-domain / whitelist check (skip model if trusted) ──────────
-    # 1. Global in-memory whitelist   (e.g. google.com, github.com)
-    # 2. Per-user DB trusted domains  (added by the user for their own senders)
     trusted_address: Optional[str] = None
     if DETECTOR.is_whitelisted(check_address):
         trusted_address = check_address
@@ -175,18 +161,14 @@ def handle_smtp_email(sender_email, recipients, raw_message):
             f"TRUSTED  user_id={user.id} | {trusted_address} → skipping model"
         )
     else:
-        # ── 5. Run model ─────────────────────────────────────────────────────
         prediction = DETECTOR.classify_email(extracted["subject"], extracted["body"])
         predicted_label = prediction["label"]
         phishing_probability = prediction["probability"]
-        # classify_email returns the probability for whichever class won;
-        # normalise so phishing_probability always represents phishing likelihood.
         if predicted_label == "legitimate":
             phishing_probability = 1.0 - phishing_probability
         risk_level = _phishing_risk_level(phishing_probability)
         reason = "model_prediction"
 
-    # ── 6. Log prediction ────────────────────────────────────────────────────
     DB_MANAGER.log_prediction(
         email_event_id=email_event.id,
         model_version=MODEL_VERSION,
@@ -200,9 +182,6 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         f"{phishing_probability:.2%} [{risk_level}] via {reason}"
     )
 
-    # ── 7. Auto-reply to user's forwarding address ───────────────────────────
-    # Reply goes to sender_email (the user's forwarding address = their real inbox),
-    # NOT to the original/attacker address.
     send_scan_reply(
         to_addr=sender_email,
         original_subject=extracted.get("original_subject", ""),
@@ -212,7 +191,7 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         reason=reason,
     )
 
-    return "250 Message accepted for delivery"
+    return "250 OK - processed successfully"
 
 
 class RegisteredUserSMTPHandler:
@@ -226,7 +205,7 @@ class RegisteredUserSMTPHandler:
         except Exception as exc:
             print(f"ERROR: Handler failure {exc}")
             traceback.print_exc()
-            return "451 Temporary server error"
+            return "421 Temp fail - try again later"
 
 
 def _resolve_whitelist(args) -> Optional[set[str]]:
@@ -276,7 +255,6 @@ def main() -> None:
         action="store_true",
         help="Disable builtin whitelisting",
     )
-    # ── auto-reply options ────────────────────────────────────────────────────
     parser.add_argument(
         "--reply",
         action="store_true",
