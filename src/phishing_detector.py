@@ -4,10 +4,9 @@ import os
 from email import message_from_bytes, policy
 from email.parser import BytesParser
 from aiosmtpd.controller import Controller
-from aiosmtpd.smtp import SMTP as SMTPServer
 import joblib
 from pathlib import Path
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 import html
 
 class PhishingDetector:
@@ -20,6 +19,7 @@ class PhishingDetector:
             base_dir = Path(__file__).parent.parent
             model_dir = base_dir / 'models' / 'model b' / 'trainning2'
         
+        model_dir = Path(model_dir)
         self.model_path = model_dir / 'phishing_model_b.joblib'
         self.vectorizer_path = model_dir / 'tfidf_vectorizer_b.joblib'
         
@@ -84,11 +84,11 @@ class PhishingDetector:
                     print(f"Original sender: {original_sender}")
                 
                 if len(body) < 20:
-                    print(f"\n⚠ WARNING: Body too short after cleaning - may indicate preprocessing issue")
+                    print(f"\nΓÜá WARNING: Body too short after cleaning - may indicate preprocessing issue")
                 
                 if original_sender and self.is_whitelisted(original_sender):
                     print(f"\n[WHITELIST CHECK]")
-                    print(f"✓ Domain whitelisted - skipping model")
+                    print(f"Γ£ô Domain whitelisted - skipping model")
                     result = {
                         'label': 'legitimate',
                         'probability': 1.0,
@@ -97,7 +97,7 @@ class PhishingDetector:
                 else:
                     if original_sender:
                         print(f"\n[WHITELIST CHECK]")
-                        print(f"✗ Domain not whitelisted - running model")
+                        print(f"Γ£ù Domain not whitelisted - running model")
                     
                     result = self.classify_email(subject, body)
                     result['reason'] = 'model_prediction'
@@ -333,9 +333,8 @@ class PhishingDetector:
             for script in soup(["script", "style", "head", "meta", "link"]):
                 script.decompose()
             
-            for comment in soup.find_all(text=lambda text: isinstance(text, type(soup.find_all()[0]))):
-                if hasattr(comment, 'extract'):
-                    comment.extract()
+            for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
+                comment.extract()
             
             text = soup.get_text(separator=' ')
             
@@ -480,8 +479,8 @@ class PhishingDetector:
         text = html.unescape(text)
         
         text = re.sub(r'&[a-z]+;', ' ', text, flags=re.IGNORECASE)
-        text = re.sub(r'&
-        text = re.sub(r'&
+        text = re.sub(r'&#\d+;', ' ', text)
+        text = re.sub(r'&#x[0-9a-f]+;', ' ', text, flags=re.IGNORECASE)
         
         text = text.replace('\u200B', ' ')
         text = text.replace('\u200C', ' ')
@@ -503,15 +502,9 @@ class PhishingDetector:
         text = re.sub(r'\w+\s*\{[^}]+\}', ' ', text)
         text = re.sub(r'sup\s*\{[^}]+\}', ' ', text, flags=re.IGNORECASE)
         text = re.sub(r'[a-z-]+\s*:\s*[^;]+\s*!important\s*;?', ' ', text, flags=re.IGNORECASE)
-        text = re.sub(r'[a-z-]+\s*:\s*[\d%a-z
-        
-        text = re.sub(r'\w+\s*\{[^}]+\}', ' ', text)
-        text = re.sub(r'sup\s*\{[^}]+\}', ' ', text, flags=re.IGNORECASE)
-        text = re.sub(r'[a-z-]+\s*:\s*[^;]+\s*!important\s*;?', ' ', text, flags=re.IGNORECASE)
-        text = re.sub(r'[a-z-]+\s*:\s*[\d%a-z
-        
-        text = re.sub(r'[{}!;%
-        
+        text = re.sub(r'[a-z-]+\s*:\s*[\d%a-z#.,\s()\/-]+;?', ' ', text, flags=re.IGNORECASE)
+        text = re.sub(r'[{}!;%@#~^*]', ' ', text)
+
         text = re.sub(r'\br/[a-z0-9_]+\b\s*:?\s*', ' ', text, flags=re.IGNORECASE)
         
         text = re.sub(r'(?:view|read|open)\s+(?:this\s+)?(?:email|message|newsletter)\s+(?:in|on)\s+(?:your\s+)?(?:browser|web)', ' ', text, flags=re.IGNORECASE)
@@ -532,26 +525,6 @@ class PhishingDetector:
         text = re.sub(r'on\s+.+?wrote:', ' ', text, flags=re.IGNORECASE)
         
         text = re.sub(r'\b\d{10,}\b', ' ', text)
-        
-        text = text.lower()
-        
-        text = re.sub(r'\s+', ' ', text)
-        
-        text = text.strip()
-        
-        words = text.split()
-        meaningful_chars = {'i', 'a'}
-        words = [w for w in words if len(w) > 1 or w in meaningful_chars]
-        text = ' '.join(words)
-        
-        if len(text) < 5:
-            return ""
-        
-        words = text.split()
-        if len(words) < 2:
-            return ""
-        
-        return text
         
         text = text.lower()
         

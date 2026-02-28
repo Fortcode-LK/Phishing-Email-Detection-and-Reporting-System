@@ -183,3 +183,35 @@ Examples:
 IMPORTANT: You need a Gmail App Password (not your regular password)
 Create one at: https://myaccount.google.com/apppasswords
 
+"""
+)
+
+    parser.add_argument('--gmail', metavar='EMAIL', help='Gmail address to fetch from')
+    parser.add_argument('--fetch', action='store_true', help='Fetch emails via IMAP')
+    parser.add_argument('--search', default='ALL', metavar='CRITERIA',
+                        help='IMAP search criteria (default: ALL)')
+    parser.add_argument('--limit', type=int, default=5, metavar='N',
+                        help='Max emails to fetch (default: 5)')
+    parser.add_argument('--smtp-host', default='localhost', metavar='HOST',
+                        help='Destination SMTP host (default: localhost)')
+    parser.add_argument('--smtp-port', type=int, default=1025, metavar='PORT',
+                        help='Destination SMTP port (default: 1025)')
+
+    args = parser.parse_args()
+
+    if args.gmail and args.fetch:
+        import getpass
+        password = getpass.getpass(f"App password for {args.gmail}: ")
+        fetch_and_forward_gmail(
+            gmail_user=args.gmail,
+            gmail_password=password,
+            smtp_host=args.smtp_host,
+            smtp_port=args.smtp_port,
+            limit=args.limit,
+            search_criteria=args.search,
+        )
+    else:
+        interactive_mode()
+
+if __name__ == '__main__':
+    main()
