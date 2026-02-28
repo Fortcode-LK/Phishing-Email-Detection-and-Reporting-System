@@ -59,44 +59,76 @@ def handle_smtp_email(sender_email, recipients, raw_message):
     if DB_MANAGER is None or DETECTOR is None:
         raise RuntimeError("SMTP server not initialized")
 
+    # ── 1. Validate user ─────────────────────────────────────────────────────
     user = DB_MANAGER.get_user_by_email_hash(hash_email(sender_email))
     if not user:
         print(f"DISCARDED: Unregistered sender {sender_email}")
         return "250 OK"
 
+    # ── 2. Preprocess ────────────────────────────────────────────────────────
     extracted = DETECTOR.preprocess_email(raw_message)
     if not extracted:
         print(f"DISCARDED: Failed preprocessing for user_id={user.id}")
         return "550 Unable to process message"
 
     sender_domain = get_sender_domain(sender_email)
+    original_sender = extracted.get("original_sender")
+    original_domain = get_sender_domain(original_sender) if original_sender else None
     message_id_hash = _message_id_hash(raw_message)
 
+    # ── 3. Log email event ───────────────────────────────────────────────────
     email_event = DB_MANAGER.log_email_event(
         user_id=user.id,
         sender_domain=sender_domain,
-        is_forwarded=bool(extracted.get("original_sender")),
+        is_forwarded=bool(original_sender),
         message_id_hash=message_id_hash,
     )
 
-    prediction = DETECTOR.classify_email(extracted["subject"], extracted["body"])
-    phishing_probability = prediction["probability"]
-    if prediction["label"] == "legitimate":
-        phishing_probability = 1.0 - phishing_probability
+    # ── 4. Trusted-domain / whitelist check (skip model if trusted) ──────────
+    # Priority: in-memory whitelist first (global), then per-user DB trusted domains.
+    # Both the SMTP envelope sender and the forwarded original sender are checked.
+    trusted_address: Optional[str] = None
+    if DETECTOR.is_whitelisted(sender_email):
+        trusted_address = sender_email
+    elif original_sender and DETECTOR.is_whitelisted(original_sender):
+        trusted_address = original_sender
+    elif DB_MANAGER.is_trusted_domain(user.id, sender_domain):
+        trusted_address = sender_email
+    elif original_domain and DB_MANAGER.is_trusted_domain(user.id, original_domain):
+        trusted_address = original_sender
 
-    risk_level = _phishing_risk_level(phishing_probability)
+    if trusted_address:
+        predicted_label = "legitimate"
+        phishing_probability = 0.0
+        risk_level = "LOW"
+        reason = "trusted_domain"
+        print(
+            f"TRUSTED  user_id={user.id} | {trusted_address} → skipping model"
+        )
+    else:
+        # ── 5. Run model ─────────────────────────────────────────────────────
+        prediction = DETECTOR.classify_email(extracted["subject"], extracted["body"])
+        predicted_label = prediction["label"]
+        phishing_probability = prediction["probability"]
+        # classify_email returns the probability for whichever class won;
+        # normalise so phishing_probability always represents phishing likelihood.
+        if predicted_label == "legitimate":
+            phishing_probability = 1.0 - phishing_probability
+        risk_level = _phishing_risk_level(phishing_probability)
+        reason = "model_prediction"
 
+    # ── 6. Log prediction ────────────────────────────────────────────────────
     DB_MANAGER.log_prediction(
         email_event_id=email_event.id,
         model_version=MODEL_VERSION,
         phishing_prob=phishing_probability,
-        predicted_label=prediction["label"],
+        predicted_label=predicted_label,
         risk_level=risk_level,
     )
 
     print(
-        f"PROCESSED for user_id={user.id}: "
-        f"{prediction['label'].upper()} {phishing_probability:.2%}"
+        f"PROCESSED user_id={user.id} | {predicted_label.upper()} "
+        f"{phishing_probability:.2%} [{risk_level}] via {reason}"
     )
 
     return "250 Message accepted for delivery"
