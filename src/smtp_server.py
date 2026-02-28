@@ -4,9 +4,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import smtplib
 import traceback
 from email import policy
+from email.mime.text import MIMEText
 from email.parser import BytesParser
+from email.utils import formatdate
 from pathlib import Path
 from typing import Optional
 
@@ -18,6 +21,14 @@ from phishing_detector import PhishingDetector
 DB_MANAGER: Optional[DatabaseManager] = None
 DETECTOR: Optional[PhishingDetector] = None
 MODEL_VERSION: str = "unknown"
+
+# Auto-reply configuration — populated by main() from CLI args.
+REPLY_CFG: dict = {
+    "enabled": False,
+    "host": "localhost",
+    "port": 25,
+    "from_addr": "phishing-scanner@localhost",
+}
 
 
 def hash_email(email: Optional[str]) -> str:
@@ -53,6 +64,59 @@ def _message_id_hash(raw_message: bytes) -> Optional[str]:
     except Exception:
         pass
     return None
+
+
+def send_scan_reply(
+    to_addr: str,
+    original_subject: str,
+    predicted_label: str,
+    phishing_probability: float,
+    risk_level: str,
+    reason: str,
+) -> None:
+    """Send a scan-result email back to the user's forwarding address.
+
+    Uses smtplib (stdlib) so no extra dependencies are needed.
+    Failures are logged but never propagate — the reply is best-effort.
+    """
+    if not REPLY_CFG.get("enabled"):
+        return
+
+    pct = phishing_probability * 100
+    if predicted_label == "phishing":
+        verdict_line = f"⚠  PHISHING detected  ({pct:.0f}% confidence)"
+        action_line  = "We recommend you DO NOT click any links or open attachments."
+    else:
+        verdict_line = f"✔  Safe  ({100 - pct:.0f}% confidence)"
+        action_line  = "No threats were detected in this email."
+
+    # Include original subject so the user knows which email was scanned.
+    scanned_subject = original_subject.strip() if original_subject else "(no subject)"
+
+    body = (
+        f"Phishing Scan Result\n"
+        f"{'=' * 40}\n"
+        f"Scanned email : {scanned_subject}\n"
+        f"Verdict       : {verdict_line}\n"
+        f"Risk level    : {risk_level}\n"
+        f"Checked via   : {reason}\n"
+        f"{'=' * 40}\n"
+        f"{action_line}\n\n"
+        f"-- Phishing Detection System"
+    )
+
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["From"]    = REPLY_CFG["from_addr"]
+    msg["To"]      = to_addr
+    msg["Date"]    = formatdate(localtime=True)
+    msg["Subject"] = f"[Phishing Scan] {'⚠ PHISHING' if predicted_label == 'phishing' else '✔ Safe'} – {scanned_subject}"
+
+    try:
+        with smtplib.SMTP(REPLY_CFG["host"], REPLY_CFG["port"], timeout=10) as relay:
+            relay.sendmail(REPLY_CFG["from_addr"], [to_addr], msg.as_bytes())
+        print(f"REPLY     sent to {to_addr}")
+    except Exception as exc:  # never crash the pipeline over a reply failure
+        print(f"REPLY     FAILED to {to_addr}: {exc}")
 
 
 def handle_smtp_email(sender_email, recipients, raw_message):
@@ -136,6 +200,18 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         f"{phishing_probability:.2%} [{risk_level}] via {reason}"
     )
 
+    # ── 7. Auto-reply to user's forwarding address ───────────────────────────
+    # Reply goes to sender_email (the user's forwarding address = their real inbox),
+    # NOT to the original/attacker address.
+    send_scan_reply(
+        to_addr=sender_email,
+        original_subject=extracted.get("original_subject", ""),
+        predicted_label=predicted_label,
+        phishing_probability=phishing_probability,
+        risk_level=risk_level,
+        reason=reason,
+    )
+
     return "250 Message accepted for delivery"
 
 
@@ -200,12 +276,43 @@ def main() -> None:
         action="store_true",
         help="Disable builtin whitelisting",
     )
+    # ── auto-reply options ────────────────────────────────────────────────────
+    parser.add_argument(
+        "--reply",
+        action="store_true",
+        help="Enable auto-reply: send scan result back to the forwarding user",
+    )
+    parser.add_argument(
+        "--reply-host",
+        default="localhost",
+        help="Outbound SMTP relay host for sending replies (default: localhost)",
+    )
+    parser.add_argument(
+        "--reply-port",
+        type=int,
+        default=25,
+        help="Outbound SMTP relay port (default: 25)",
+    )
+    parser.add_argument(
+        "--reply-from",
+        default="phishing-scanner@localhost",
+        help="From address used in scan-result reply emails",
+    )
 
     args = parser.parse_args()
 
     whitelist = _resolve_whitelist(args)
 
-    global DB_MANAGER, DETECTOR, MODEL_VERSION
+    global DB_MANAGER, DETECTOR, MODEL_VERSION, REPLY_CFG
+    REPLY_CFG["enabled"]   = args.reply
+    REPLY_CFG["host"]      = args.reply_host
+    REPLY_CFG["port"]      = args.reply_port
+    REPLY_CFG["from_addr"] = args.reply_from
+    if args.reply:
+        print(
+            f"Auto-reply  ENABLED → relay {args.reply_host}:{args.reply_port} "
+            f"from <{args.reply_from}>"
+        )
     DB_MANAGER = DatabaseManager()
     DETECTOR = PhishingDetector(
         host=args.host,
