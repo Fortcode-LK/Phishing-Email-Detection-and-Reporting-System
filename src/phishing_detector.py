@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import re
 import os
 from email import message_from_bytes, policy
@@ -501,8 +501,8 @@ class PhishingDetector:
         
         text = re.sub(r'\w+\s*\{[^}]+\}', ' ', text)
         text = re.sub(r'sup\s*\{[^}]+\}', ' ', text, flags=re.IGNORECASE)
-        text = re.sub(r'[a-z-]+\s*:\s*[^;]+\s*!important\s*;?', ' ', text, flags=re.IGNORECASE)
-        text = re.sub(r'[a-z-]+\s*:\s*[\d%a-z#.,\s()\/-]+;?', ' ', text, flags=re.IGNORECASE)
+        text = re.sub(r'[a-z-]+\s*:\s*[^;{}\n]+\s*!important\s*;?', ' ', text, flags=re.IGNORECASE)
+        text = re.sub(r'[a-z-]+\s*:\s*[^;{}\n]+;', ' ', text, flags=re.IGNORECASE)
         text = re.sub(r'[{}!;%@#~^*]', ' ', text)
 
         text = re.sub(r'\br/[a-z0-9_]+\b\s*:?\s*', ' ', text, flags=re.IGNORECASE)
