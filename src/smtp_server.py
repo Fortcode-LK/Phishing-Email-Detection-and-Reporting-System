@@ -71,31 +71,36 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         print(f"DISCARDED: Failed preprocessing for user_id={user.id}")
         return "550 Unable to process message"
 
-    sender_domain = get_sender_domain(sender_email)
     original_sender = extracted.get("original_sender")
     original_domain = get_sender_domain(original_sender) if original_sender else None
+
+    # The architecture is auto-forwarding: users forward their inbox to this server.
+    # So the SMTP envelope sender is always the user's own forwarding address, NOT
+    # the email's true origin.  The true origin is original_sender (parsed from the
+    # forwarded headers).  Only fall back to the envelope sender for direct delivery
+    # (i.e. no forwarding headers were found).
+    check_address = original_sender if original_sender else sender_email
+    check_domain  = original_domain if original_domain else get_sender_domain(sender_email)
+
     message_id_hash = _message_id_hash(raw_message)
 
     # ── 3. Log email event ───────────────────────────────────────────────────
+    # Record the true origin domain (original for forwarded, envelope for direct).
     email_event = DB_MANAGER.log_email_event(
         user_id=user.id,
-        sender_domain=sender_domain,
+        sender_domain=check_domain,
         is_forwarded=bool(original_sender),
         message_id_hash=message_id_hash,
     )
 
     # ── 4. Trusted-domain / whitelist check (skip model if trusted) ──────────
-    # Priority: in-memory whitelist first (global), then per-user DB trusted domains.
-    # Both the SMTP envelope sender and the forwarded original sender are checked.
+    # 1. Global in-memory whitelist   (e.g. google.com, github.com)
+    # 2. Per-user DB trusted domains  (added by the user for their own senders)
     trusted_address: Optional[str] = None
-    if DETECTOR.is_whitelisted(sender_email):
-        trusted_address = sender_email
-    elif original_sender and DETECTOR.is_whitelisted(original_sender):
-        trusted_address = original_sender
-    elif DB_MANAGER.is_trusted_domain(user.id, sender_domain):
-        trusted_address = sender_email
-    elif original_domain and DB_MANAGER.is_trusted_domain(user.id, original_domain):
-        trusted_address = original_sender
+    if DETECTOR.is_whitelisted(check_address):
+        trusted_address = check_address
+    elif DB_MANAGER.is_trusted_domain(user.id, check_domain):
+        trusted_address = check_address
 
     if trusted_address:
         predicted_label = "legitimate"
