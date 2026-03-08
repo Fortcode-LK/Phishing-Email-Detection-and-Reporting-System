@@ -4,7 +4,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Dict, List
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base, EmailEvent, Prediction, TrustedDomain, User
@@ -69,6 +69,21 @@ class DatabaseManager:
         with self._session_scope() as session:
             return session.scalar(select(User).where(User.emailHash == email_hash))
 
+    def ensure_admin_user(self, email_hash: str, password_hash: str) -> None:
+        """Create the single admin account only if no admin user exists yet."""
+        with self._session_scope() as session:
+            existing = session.scalar(select(User).where(User.role == "admin"))
+            if existing:
+                return
+            admin = User(
+                emailHash=email_hash,
+                passwordHash=password_hash,
+                firstName="Admin",
+                lastName="",
+                role="admin",
+            )
+            session.add(admin)
+
     def log_email_event(self, user_id, sender_domain, is_forwarded=False, message_id_hash=None):
         with self._session_scope() as session:
             event = EmailEvent(
@@ -129,6 +144,132 @@ class DatabaseManager:
             session.add(trusted)
             return trusted
 
+    def get_user_trusted_domains(self, user_id: int) -> list[dict]:
+        """Return all trusted domains for a user."""
+        with self._session_scope() as session:
+            rows = session.execute(
+                select(TrustedDomain)
+                .where(TrustedDomain.userId == user_id)
+                .order_by(TrustedDomain.createdAt.desc())
+            ).scalars().all()
+            return [
+                {
+                    "id": r.id,
+                    "domain": r.domain,
+                    "reason": r.reason or "",
+                    "created_at": r.createdAt,
+                }
+                for r in rows
+            ]
+
+    def remove_trusted_domain(self, user_id: int, domain: str) -> bool:
+        """Delete a trusted domain entry. Returns True if it existed."""
+        with self._session_scope() as session:
+            row = session.scalar(
+                select(TrustedDomain).where(
+                    TrustedDomain.userId == user_id,
+                    TrustedDomain.domain == domain,
+                )
+            )
+            if not row:
+                return False
+            session.delete(row)
+            return True
+
+    def get_user_summary(self, user_id: int, trend_days: int = 14) -> Dict[str, object]:
+        """Return per-user aggregate stats + daily trend data.
+
+        Used by GET /api/user/summary so the frontend never derives counts
+        from a page-limited record set.
+        """
+        with self._session_scope() as session:
+            total_scanned: int = session.scalar(
+                select(func.count())
+                .select_from(EmailEvent)
+                .where(EmailEvent.userId == user_id)
+            ) or 0
+
+            total_phishing: int = session.scalar(
+                select(func.count())
+                .select_from(Prediction)
+                .join(EmailEvent, EmailEvent.id == Prediction.emailEventId)
+                .where(
+                    EmailEvent.userId == user_id,
+                    Prediction.predictedLabel == "phishing",
+                )
+            ) or 0
+
+            total_legitimate: int = session.scalar(
+                select(func.count())
+                .select_from(Prediction)
+                .join(EmailEvent, EmailEvent.id == Prediction.emailEventId)
+                .where(
+                    EmailEvent.userId == user_id,
+                    Prediction.predictedLabel == "legitimate",
+                )
+            ) or 0
+
+            phishing_ratio: float = (
+                total_phishing / total_scanned if total_scanned > 0 else 0.0
+            )
+
+            # Daily buckets for the trend chart
+            from datetime import date, timedelta  # local to avoid top-level import conflict
+            today = date.today()
+            daily_rows = session.execute(
+                select(
+                    func.date(EmailEvent.receivedAt).label("day"),
+                    func.count(EmailEvent.id).label("total"),
+                    func.sum(
+                        func.iif(Prediction.predictedLabel == "phishing", 1, 0)
+                    ).label("phishing_total"),
+                )
+                .outerjoin(Prediction, Prediction.emailEventId == EmailEvent.id)
+                .where(
+                    EmailEvent.userId == user_id,
+                    func.date(EmailEvent.receivedAt) >= str(today - timedelta(days=trend_days - 1)),
+                )
+                .group_by(func.date(EmailEvent.receivedAt))
+                .order_by(func.date(EmailEvent.receivedAt))
+            ).all()
+
+            # Build a full dense series (fill in 0s for missing days)
+            row_map = {r.day: (r.total, int(r.phishing_total or 0)) for r in daily_rows}
+            daily = []
+            for i in range(trend_days):
+                d = str(today - timedelta(days=trend_days - 1 - i))
+                total, phish = row_map.get(d, (0, 0))
+                daily.append({"date": d, "total": total, "phishing": phish})
+
+            # Risk-level breakdown for the donut chart
+            def _risk_count(level: str) -> int:
+                return session.scalar(
+                    select(func.count())
+                    .select_from(Prediction)
+                    .join(EmailEvent, EmailEvent.id == Prediction.emailEventId)
+                    .where(
+                        EmailEvent.userId == user_id,
+                        Prediction.riskLevel == level,
+                    )
+                ) or 0
+
+            risk_high = _risk_count("HIGH")
+            risk_medium = _risk_count("MEDIUM")
+            risk_low = _risk_count("LOW")
+            risk_unscanned = total_scanned - (risk_high + risk_medium + risk_low)
+
+            return {
+                "total_scanned": total_scanned,
+                "total_phishing": total_phishing,
+                "total_legitimate": total_legitimate,
+                "phishing_ratio": phishing_ratio,
+                "risk_high": risk_high,
+                "risk_medium": risk_medium,
+                "risk_low": risk_low,
+                "risk_unscanned": risk_unscanned,
+                "daily_trend": daily,
+            }
+
     def get_user_predictions(self, user_id, limit=100):
         with self._session_scope() as session:
             stmt = (
@@ -163,3 +304,100 @@ class DatabaseManager:
                     }
                 )
             return payload
+
+    def get_all_predictions(self, limit: int = 100) -> List[Dict[str, object]]:
+        """Return scan history across ALL users (admin view).
+
+        Each record includes ``user_email`` set to the stored email hash
+        (no plain email is ever persisted).
+        """
+        with self._session_scope() as session:
+            stmt = (
+                select(User, EmailEvent, Prediction)
+                .join(EmailEvent, EmailEvent.userId == User.id)
+                .outerjoin(Prediction, Prediction.emailEventId == EmailEvent.id)
+                .order_by(EmailEvent.receivedAt.desc())
+                .limit(limit)
+            )
+            results = session.execute(stmt).all()
+
+            payload: List[Dict[str, object]] = []
+            for user, event, prediction in results:
+                payload.append(
+                    {
+                        "email_event_id": event.id,
+                        "user_id": event.userId,
+                        "user_email": user.emailHash,  # hash only – no plain email stored
+                        "sender_domain": event.senderDomain,
+                        "is_forwarded": event.isForwarded,
+                        "received_at": event.receivedAt,
+                        "message_id_hash": event.messageIdHash,
+                        "prediction": None
+                        if not prediction
+                        else {
+                            "prediction_id": prediction.id,
+                            "model_version": prediction.modelVersion,
+                            "phishing_probability": prediction.phishingProbability,
+                            "predicted_label": prediction.predictedLabel,
+                            "risk_level": prediction.riskLevel,
+                            "created_at": prediction.createdAt,
+                        },
+                    }
+                )
+            return payload
+
+    def get_system_metrics(self) -> Dict[str, object]:
+        """Return aggregate system-wide metrics for the admin dashboard."""
+        with self._session_scope() as session:
+            total_scanned: int = session.scalar(
+                select(func.count()).select_from(EmailEvent)
+            ) or 0
+
+            total_phishing: int = session.scalar(
+                select(func.count())
+                .select_from(Prediction)
+                .where(Prediction.predictedLabel == "phishing")
+            ) or 0
+
+            total_legitimate: int = session.scalar(
+                select(func.count())
+                .select_from(Prediction)
+                .where(Prediction.predictedLabel == "legitimate")
+            ) or 0
+
+            phishing_ratio: float = (
+                total_phishing / total_scanned if total_scanned > 0 else 0.0
+            )
+
+            # Top 10 sender domains by total volume
+            domain_rows = session.execute(
+                select(
+                    EmailEvent.senderDomain,
+                    func.count(EmailEvent.id).label("total"),
+                    func.sum(
+                        func.iif(Prediction.predictedLabel == "phishing", 1, 0)
+                    ).label("phishing_total"),
+                )
+                .outerjoin(Prediction, Prediction.emailEventId == EmailEvent.id)
+                .where(EmailEvent.senderDomain != "")
+                .group_by(EmailEvent.senderDomain)
+                .order_by(func.count(EmailEvent.id).desc())
+                .limit(10)
+            ).all()
+
+            top_sender_domains = [
+                {
+                    "domain": row.senderDomain,
+                    "count": row.total,
+                    "phishing_count": int(row.phishing_total or 0),
+                }
+                for row in domain_rows
+            ]
+
+            return {
+                "total_scanned": total_scanned,
+                "total_phishing": total_phishing,
+                "total_legitimate": total_legitimate,
+                "phishing_ratio": phishing_ratio,
+                "top_sender_domains": top_sender_domains,
+            }
