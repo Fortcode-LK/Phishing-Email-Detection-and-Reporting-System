@@ -11,7 +11,7 @@ This system implements a 3-step phishing detection pipeline:
 
 1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 ## Running the System
@@ -19,7 +19,7 @@ pip install -r requirements.txt
 ### Start the Phishing Detector Server
 
 ```bash
-cd src
+cd backend/app
 python phishing_detector.py
 ```
 
@@ -38,7 +38,7 @@ python phishing_detector.py --host localhost --port 1025
 In a separate terminal:
 
 ```bash
-cd src
+cd backend/app
 python test_email_sender.py
 ```
 
@@ -75,7 +75,7 @@ python test_email_sender.py --type all
 - Cleans text (lowercase, normalize whitespace)
 
 ### STEP 3: Model Classification
-- Loads pre-trained model from `models/model b/trainning2/`
+- Loads pre-trained model from `backend/ml/models/model_b/`
 - Combines subject + body as input
 - Transforms text using TF-IDF vectorizer
 - Returns classification:
@@ -128,8 +128,8 @@ with smtplib.SMTP('localhost', 1025) as server:
 ## Model Files
 
 The system uses pre-trained models from:
-- `models/model b/trainning2/phishing_model_b.joblib`
-- `models/model b/trainning2/tfidf_vectorizer_b.joblib`
+- `backend/ml/models/model_b/phishing_model_b.joblib`
+- `backend/ml/models/model_b/tfidf_vectorizer_b.joblib`
 
 These must exist for the system to work.
 
@@ -141,7 +141,7 @@ python phishing_detector.py --port 1026
 ```
 
 **Model not found:**
-- Verify files exist in `models/model b/trainning2/`
+- Verify files exist in `backend/ml/models/model_b/`
 - Or specify custom path: `--model-dir /path/to/models`
 
 **Cannot send test emails:**

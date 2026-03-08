@@ -16,8 +16,8 @@ class PhishingDetector:
         self.port = port
         
         if model_dir is None:
-            base_dir = Path(__file__).parent.parent
-            model_dir = base_dir / 'models' / 'model b' / 'trainning2'
+            base_dir = Path(__file__).parent.parent  # backend/
+            model_dir = base_dir / 'ml' / 'models' / 'model_b'
         
         model_dir = Path(model_dir)
         self.model_path = model_dir / 'phishing_model_b.joblib'

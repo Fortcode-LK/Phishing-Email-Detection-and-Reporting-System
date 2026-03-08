@@ -16,7 +16,7 @@ An SMTP-based phishing detection system that receives emails, preprocesses them,
 ## Requirements
 
 - Python 3.10+
-- See [requirements.txt](requirements.txt) for all dependencies
+- See [`backend/requirements.txt`](backend/requirements.txt) for all dependencies
 
 ```
 aiosmtpd>=1.4.4
@@ -32,7 +32,7 @@ sqlalchemy==2.0.25
 ```bash
 git clone https://github.com/Fortcode-LK/Phishing-Email-Detection-and-Reporting-System.git
 cd Phishing-Email-Detection-and-Reporting-System
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 ## Setup
@@ -42,8 +42,8 @@ pip install -r requirements.txt
 The system requires pre-trained model files:
 
 ```
-models/model b/trainning2/phishing_model_b.joblib
-models/model b/trainning2/tfidf_vectorizer_b.joblib
+backend/ml/models/model_b/phishing_model_b.joblib
+backend/ml/models/model_b/tfidf_vectorizer_b.joblib
 ```
 
 ### 2. Initialise the database
@@ -51,7 +51,7 @@ models/model b/trainning2/tfidf_vectorizer_b.joblib
 Run the init script once to create the SQLite database and verify the DB layer:
 
 ```bash
-cd src
+cd backend/app
 python init_db.py
 ```
 
@@ -81,7 +81,7 @@ db.create_user(
 ### Option A — Full pipeline (SMTP + DB + auto-reply)
 
 ```bash
-cd src
+cd backend/app
 python smtp_server.py
 ```
 
@@ -108,7 +108,7 @@ python smtp_server.py --reply --reply-host localhost --reply-port 25
 ### Option B — Standalone detector (no DB)
 
 ```bash
-cd src
+cd backend/app
 python phishing_detector.py --port 1025
 ```
 
@@ -146,21 +146,29 @@ See [GMAIL_TESTING.md](GMAIL_TESTING.md) for instructions on forwarding real Gma
 
 ```
 phishing-project/
-├── src/
-│   ├── smtp_server.py          # DB-integrated SMTP router (production)
-│   ├── phishing_detector.py    # Standalone SMTP detector (no DB)
-│   ├── database.py             # SQLAlchemy DatabaseManager
-│   ├── models.py               # ORM models (User, EmailEvent, Prediction, TrustedDomain)
-│   └── init_db.py              # DB initialisation and smoke-test script
+├── backend/                        # All server-side code
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── smtp_server.py          # Entry point — SMTP server & pipeline
+│   │   ├── phishing_detector.py    # ML wrapper & email preprocessor
+│   │   ├── database.py             # SQLAlchemy DatabaseManager
+│   │   ├── models.py               # ORM models
+│   │   ├── init_db.py              # DB init & smoke-test
+│   │   └── utils/
+│   │       └── clean_and_merge.py  # Dataset utility
+│   └── ml/
+│       ├── models/
+│       │   ├── model_a/            # Baseline model
+│       │   └── model_b/            # Active model (loaded by default)
+│       ├── notebooks/              # Training notebooks
+│       └── data/                   # Raw & processed datasets
+├── frontend/                       # Frontend application (in progress)
+│   ├── designs/                    # HTML mockups
+│   └── README.md                   # Frontend setup guide
 ├── tools/
-│   └── gmail_forwarder.py      # Gmail → local SMTP forwarding utility
-├── models/
-│   └── model b/trainning2/     # Pre-trained ML model files
-├── data/
-│   └── processed/emails_merged.csv
-├── requirements.txt
+│   └── gmail_forwarder.py          # Gmail → local SMTP forwarding utility
 └── docs/
-    ├── BACKEND_API.md          # Full backend developer reference
+    ├── BACKEND_API.md              # Full backend API reference
     └── notes/
 ```
 

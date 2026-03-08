@@ -2,7 +2,7 @@
 
 > **Audience:** Backend developers integrating with or extending the phishing detection system.  
 > **Last updated:** 2026-02-28  
-> **Repo:** `src/smtp_server.py` · `src/database.py` · `src/models.py` · `src/phishing_detector.py`
+> **Repo:** `backend/app/smtp_server.py` · `backend/app/database.py` · `backend/app/models.py` · `backend/app/phishing_detector.py`
 
 ---
 
@@ -74,13 +74,14 @@ User's inbox
 
 ## 2. SMTP Server
 
-**File:** `src/smtp_server.py`  
-**Entry point:** `python src/smtp_server.py [options]`
+**File:** `backend/app/smtp_server.py`  
+**Entry point:** `python backend/app/smtp_server.py [options]` (run from project root) or `python smtp_server.py` (run from `backend/app/`)
 
 ### 2.1 Starting the Server
 
 ```bash
-python src/smtp_server.py \
+# From project root:
+python backend/app/smtp_server.py \
   --host     localhost \        # bind address          (default: localhost)
   --port     1025 \             # listen port           (default: 1025)
   --model-dir path/to/models \  # override model path   (default: auto-detected)
@@ -191,7 +192,7 @@ Risk level thresholds (model path only):
 
 ## 3. Database Layer — `DatabaseManager`
 
-**File:** `src/database.py`  
+**File:** `backend/app/database.py`  
 **Engine:** SQLite via SQLAlchemy 2.x  
 **Default DB file:** `phishing_detector.db` (relative to CWD)  
 **Override:** Set `database.DATABASE_URL` before instantiation, or set the `DATABASE_URL` env variable.
@@ -438,7 +439,7 @@ for record in history:
 
 ## 5. ML Detector — `PhishingDetector`
 
-**File:** `src/phishing_detector.py`
+**File:** `backend/app/phishing_detector.py`
 
 ### 5.1 Initialisation
 
@@ -448,7 +449,7 @@ from phishing_detector import PhishingDetector
 detector = PhishingDetector(
     host             = "localhost",          # SMTP bind host (only used in standalone mode)
     port             = 1025,                 # SMTP bind port (only used in standalone mode)
-    model_dir        = "models/model b/trainning2",  # None = auto-detect
+    model_dir        = "backend/ml/models/model_b",  # None = auto-detect
     whitelist_domains= None,                 # None = use built-in defaults; set() = empty
 )
 ```
@@ -642,7 +643,7 @@ controller = srv.start_controller(handler, host="0.0.0.0", port=1025)
 A full integration test with no mocks is included at `tools/test_e2e.py`. It starts two real SMTP servers (main + reply capture), sends 6 emails via `smtplib`, reads back the DB, and prints decoded reply subjects.
 
 ```bash
-cd path/to/phishing-project
+# From project root:
 python -W ignore tools/test_e2e.py
 ```
 

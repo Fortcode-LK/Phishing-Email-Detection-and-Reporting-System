@@ -11,7 +11,7 @@ A complete 3-step phishing email detection system:
 
 ```bash
 cd phishing-project
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 Test the classifier directly with sample emails:
 
 ```bash
-cd src
+cd backend/app
 python demo.py
 ```
 
@@ -35,13 +35,13 @@ This will:
 
 **Terminal 1 - Start the detector:**
 ```bash
-cd src
+cd backend/app
 python phishing_detector.py
 ```
 
 **Terminal 2 - Send test emails:**
 ```bash
-cd src
+cd backend/app
 python test_email_sender.py
 ```
 
@@ -69,11 +69,18 @@ with smtplib.SMTP('localhost', 1025) as server:
 
 ```
 phishing-project/
-├── src/
-│   ├── phishing_detector.py     # Main 3-step detector
-│   ├── test_email_sender.py     # Send test emails
-│   └── demo.py                  # Standalone demo
-├── requirements.txt             # Python dependencies
+├── backend/
+│   ├── requirements.txt         # Python dependencies
+│   ├── app/
+│   │   ├── phishing_detector.py # Main 3-step detector
+│   │   ├── smtp_server.py       # DB-integrated server
+│   │   ├── database.py          # DB manager
+│   │   └── models.py            # ORM models
+│   └── ml/
+│       └── models/model_b/      # Trained ML model files
+├── frontend/
+│   ├── designs/             # HTML mockups
+│   └── README.md            # Frontend setup guide
 └── USAGE.md                     # Detailed documentation
 ```
 
@@ -108,9 +115,9 @@ CLASSIFICATION RESULT:
 
 ## Next Steps
 
-1. Run the demo: `python src/demo.py`
-2. Try the full server: `python src/phishing_detector.py`
-3. Send test emails: `python src/test_email_sender.py`
+1. Run the demo: `python backend/app/demo.py`
+2. Try the full server: `python backend/app/phishing_detector.py`
+3. Send test emails: `python backend/app/test_email_sender.py`
 4. Read detailed docs: See `USAGE.md`
 
 ## Troubleshooting
@@ -122,10 +129,10 @@ python test_email_sender.py --port 2525
 ```
 
 **"Model files not found"**
-- Ensure you have the trained models in: `models/model b/trainning2/`
+- Ensure you have the trained models in: `backend/ml/models/model_b/`
 - Files needed: `phishing_model_b.joblib` and `tfidf_vectorizer_b.joblib`
 
 **"aiosmtpd not installed"**
 ```bash
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```

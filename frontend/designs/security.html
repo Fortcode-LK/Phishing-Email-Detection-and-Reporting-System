@@ -1,0 +1,229 @@
+<html class="dark"><head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary": "#135bec",
+                "background-light": "#f6f6f8",
+                "background-dark": "#101622",
+                "secondary-dark": "#1c2433",
+                "danger": "#ef4444",
+                "success": "#22c55e",
+                "warning": "#f59e0b",
+              },
+              fontFamily: {
+                "display": ["Inter"]
+              },
+              borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+            },
+          },
+        }
+      </script>
+    <style type="text/tailwindcss">
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .chart-container {
+          position: relative;
+          width: 100%;
+        }
+        .trend-line {
+          stroke-dasharray: 1000;
+          stroke-dashoffset: 0;
+        }
+        .ios-blur {
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+        }
+      </style>
+    <style>
+        body {
+          min-height: max(884px, 100dvh);
+        }
+      </style>
+      </head>
+    <body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
+    <div class="relative flex h-screen w-full flex-col overflow-hidden">
+    <header class="sticky top-0 z-20 flex flex-col px-4 pt-12 pb-4 bg-background-light/80 dark:bg-background-dark/80 ios-blur border-b border-slate-200 dark:border-slate-800">
+    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center gap-3">
+    <span class="material-symbols-outlined text-primary text-2xl">analytics</span>
+    <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Phishing Reports</h1>
+    </div>
+    <div class="flex items-center gap-2">
+    <button class="p-2 rounded-full bg-slate-200/50 dark:bg-secondary-dark hover:opacity-80 transition-opacity">
+    <span class="material-symbols-outlined text-slate-700 dark:text-slate-300">download</span>
+    </button>
+    </div>
+    </div>
+    <div class="flex p-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg w-full">
+    <button class="flex-1 py-1.5 text-xs font-semibold rounded-md shadow-sm bg-white dark:bg-primary text-slate-900 dark:text-white transition-all">Today</button>
+    <button class="flex-1 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-all">Week</button>
+    <button class="flex-1 py-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 transition-all">Month</button>
+    </div>
+    </header>
+    <main class="flex-1 overflow-y-auto pb-28 pt-2">
+    <div class="grid grid-cols-2 gap-3 px-4 mb-4">
+    <div class="bg-white dark:bg-secondary-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+    <p class="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Reports</p>
+    <div class="flex items-end justify-between">
+    <h3 class="text-xl font-bold">1,284</h3>
+    <span class="text-[10px] text-success font-bold flex items-center">+12%</span>
+    </div>
+    </div>
+    <div class="bg-white dark:bg-secondary-dark p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+    <p class="text-[10px] uppercase font-bold text-slate-400 mb-1">Threat Level</p>
+    <div class="flex items-end justify-between">
+    <h3 class="text-xl font-bold text-danger">High</h3>
+    <span class="material-symbols-outlined text-danger text-sm">warning</span>
+    </div>
+    </div>
+    </div>
+    <section class="px-4 mb-6">
+    <div class="bg-white dark:bg-secondary-dark rounded-xl p-5 shadow-sm border border-slate-100 dark:border-slate-800">
+    <div class="flex justify-between items-center mb-6">
+    <h2 class="text-sm font-bold">Detection Trends</h2>
+    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1">
+    <div class="w-2 h-2 rounded-full bg-primary"></div>
+    <span class="text-[10px] text-slate-400">Threats</span>
+    </div>
+    </div>
+    </div>
+    <div class="h-40 w-full relative">
+    <svg class="w-full h-full overflow-visible" viewBox="0 0 400 150">
+    <line class="opacity-[0.05]" stroke="currentColor" stroke-width="1" x1="0" x2="400" y1="0" y2="0"></line>
+    <line class="opacity-[0.05]" stroke="currentColor" stroke-width="1" x1="0" x2="400" y1="50" y2="50"></line>
+    <line class="opacity-[0.05]" stroke="currentColor" stroke-width="1" x1="0" x2="400" y1="100" y2="100"></line>
+    <line class="opacity-[0.05]" stroke="currentColor" stroke-width="1" x1="0" x2="400" y1="150" y2="150"></line>
+    <defs>
+    <linearGradient id="chartGradient" x1="0" x2="0" y1="0" y2="1">
+    <stop offset="0%" stop-color="#135bec" stop-opacity="0.3"></stop>
+    <stop offset="100%" stop-color="#135bec" stop-opacity="0"></stop>
+    </linearGradient>
+    </defs>
+    <path d="M0 120 Q 50 80, 100 100 T 200 40 T 300 90 T 400 20 V 150 H 0 Z" fill="url(#chartGradient)"></path>
+    <path d="M0 120 Q 50 80, 100 100 T 200 40 T 300 90 T 400 20" fill="none" stroke="#135bec" stroke-linecap="round" stroke-width="3"></path>
+    <circle cx="200" cy="40" fill="#135bec" r="4"></circle>
+    <circle cx="200" cy="40" fill="#135bec" fill-opacity="0.2" r="8"></circle>
+    </svg>
+    <div class="flex justify-between mt-4 text-[10px] text-slate-400 font-medium">
+    <span>08:00</span>
+    <span>12:00</span>
+    <span>16:00</span>
+    <span>20:00</span>
+    <span>00:00</span>
+    </div>
+    </div>
+    </div>
+    </section>
+    <section class="px-4 mb-6">
+    <div class="bg-white dark:bg-secondary-dark rounded-xl p-5 shadow-sm border border-slate-100 dark:border-slate-800">
+    <h2 class="text-sm font-bold mb-6">Phishing Methods Breakdown</h2>
+    <div class="flex items-center gap-8">
+    <div class="relative w-32 h-32">
+    <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+    <circle class="text-slate-100 dark:text-slate-800" cx="18" cy="18" fill="transparent" r="16" stroke="currentColor" stroke-width="4"></circle>
+    <circle cx="18" cy="18" fill="transparent" r="16" stroke="#135bec" stroke-dasharray="60 100" stroke-dashoffset="0" stroke-width="4"></circle>
+    <circle cx="18" cy="18" fill="transparent" r="16" stroke="#ef4444" stroke-dasharray="25 100" stroke-dashoffset="-60" stroke-width="4"></circle>
+    <circle cx="18" cy="18" fill="transparent" r="16" stroke="#f59e0b" stroke-dasharray="15 100" stroke-dashoffset="-85" stroke-width="4"></circle>
+    </svg>
+    <div class="absolute inset-0 flex flex-col items-center justify-center">
+    <span class="text-xs font-bold">1.2k</span>
+    <span class="text-[8px] uppercase text-slate-400">Total</span>
+    </div>
+    </div>
+    <div class="flex-1 space-y-3">
+    <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2 text-xs font-medium">
+    <div class="w-2 h-2 rounded-full bg-primary"></div>
+    <span>Email</span>
+    </div>
+    <span class="text-xs font-bold">60%</span>
+    </div>
+    <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2 text-xs font-medium">
+    <div class="w-2 h-2 rounded-full bg-danger"></div>
+    <span>Smishing</span>
+    </div>
+    <span class="text-xs font-bold">25%</span>
+    </div>
+    <div class="flex items-center justify-between">
+    <div class="flex items-center gap-2 text-xs font-medium">
+    <div class="w-2 h-2 rounded-full bg-warning"></div>
+    <span>Others</span>
+    </div>
+    <span class="text-xs font-bold">15%</span>
+    </div>
+    </div>
+    </div>
+    </div>
+    </section>
+    <section class="px-4">
+    <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-bold">Top Trending Threats</h2>
+    <button class="text-xs font-semibold text-primary">View All</button>
+    </div>
+    <div class="flex flex-col gap-3">
+    <div class="flex items-center justify-between p-4 bg-white dark:bg-secondary-dark rounded-xl border border-slate-100 dark:border-slate-800">
+    <div class="flex items-center gap-3">
+    <div class="flex size-10 items-center justify-center rounded-lg bg-danger/10 text-danger">
+    <span class="material-symbols-outlined">link_off</span>
+    </div>
+    <div>
+    <p class="font-semibold text-sm">Suspicious URL Spike</p>
+    <p class="text-xs text-slate-500">.top domains increasing</p>
+    </div>
+    </div>
+    <div class="text-right">
+    <span class="text-sm font-bold text-danger">+42%</span>
+    <p class="text-[10px] uppercase font-bold opacity-50">Trend</p>
+    </div>
+    </div>
+    <div class="flex items-center justify-between p-4 bg-white dark:bg-secondary-dark rounded-xl border border-slate-100 dark:border-slate-800">
+    <div class="flex items-center gap-3">
+    <div class="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+    <span class="material-symbols-outlined">contact_mail</span>
+    </div>
+    <div>
+    <p class="font-semibold text-sm">Spoofed Service Alerts</p>
+    <p class="text-xs text-slate-500">Impersonation detected</p>
+    </div>
+    </div>
+    <div class="text-right">
+    <span class="text-sm font-bold text-primary">Active</span>
+    <p class="text-[10px] uppercase font-bold opacity-50">Status</p>
+    </div>
+    </div>
+    </div>
+    </section>
+    </main>
+    <nav class="fixed bottom-0 left-0 right-0 flex items-center justify-around border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-secondary-dark/90 ios-blur px-4 pb-8 pt-3 shadow-2xl z-30">
+    <a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+    <span class="material-symbols-outlined">grid_view</span>
+    <span class="text-[10px] font-medium">Dashboard</span>
+    </a>
+    <a class="flex flex-col items-center gap-1 text-primary" href="#">
+    <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">analytics</span>
+    <span class="text-[10px] font-medium">Analytics</span>
+    </a>
+    <a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+    <span class="material-symbols-outlined">mail</span>
+    <span class="text-[10px] font-medium">Inbox</span>
+    </a>
+    <a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+    <span class="material-symbols-outlined">settings</span>
+    <span class="text-[10px] font-medium">Settings</span>
+    </a>
+    </nav>
+    </div>
+    
+    </body></html>
