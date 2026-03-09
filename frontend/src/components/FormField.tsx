@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
 
 interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   id: string;
@@ -8,14 +8,17 @@ interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   rightSlot?: ReactNode;
 }
 
-export default function FormField({
-  id,
-  label,
-  icon,
-  error,
-  rightSlot,
-  ...inputProps
-}: FormFieldProps) {
+const FormField = forwardRef<HTMLInputElement, FormFieldProps>(function FormField(
+  {
+    id,
+    label,
+    icon,
+    error,
+    rightSlot,
+    ...inputProps
+  },
+  ref
+) {
   return (
     <div className="space-y-2">
       <label
@@ -30,6 +33,7 @@ export default function FormField({
         </span>
         <input
           id={id}
+          ref={ref}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
           className={[
@@ -61,4 +65,6 @@ export default function FormField({
       )}
     </div>
   );
-}
+});
+
+export default FormField;
