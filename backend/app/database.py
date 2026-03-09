@@ -4,7 +4,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Dict, List
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base, EmailEvent, Prediction, TrustedDomain, User
@@ -23,11 +24,51 @@ class DatabaseManager:
             connect_args={"check_same_thread": False},
         )
         Base.metadata.create_all(self.engine)
+        self._migrate_remove_mobile_unique()
         self._Session = sessionmaker(
             bind=self.engine,
             future=True,
             expire_on_commit=False,
         )
+
+    def _migrate_remove_mobile_unique(self) -> None:
+        with self.engine.connect() as conn:
+            schema = conn.execute(
+                text("SELECT sql FROM sqlite_master WHERE type='table' AND name='User'")
+            ).scalar() or ""
+            if '"mobileNumber" VARCHAR UNIQUE' not in schema and "mobileNumber" not in schema.replace(" ", "").lower() or "unique" not in schema.lower():
+                return
+            lines = [l.strip() for l in schema.splitlines()]
+            needs_migration = any(
+                "mobilenumber" in l.lower() and "unique" in l.lower()
+                for l in lines
+            )
+            if not needs_migration:
+                return
+
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS "User_migration_tmp" (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    "emailHash" VARCHAR NOT NULL UNIQUE,
+                    "passwordHash" VARCHAR NOT NULL,
+                    role VARCHAR,
+                    "firstName" VARCHAR,
+                    "lastName" VARCHAR,
+                    "mobileNumber" VARCHAR,
+                    address VARCHAR,
+                    "createdAt" DATETIME,
+                    "updatedAt" DATETIME
+                )
+            """))
+            conn.execute(text("""
+                INSERT INTO "User_migration_tmp"
+                SELECT id, "emailHash", "passwordHash", role, "firstName",
+                       "lastName", "mobileNumber", address, "createdAt", "updatedAt"
+                FROM "User"
+            """))
+            conn.execute(text('DROP TABLE "User"'))
+            conn.execute(text('ALTER TABLE "User_migration_tmp" RENAME TO "User"'))
+            conn.commit()
 
     @contextmanager
     def _session_scope(self) -> Session:
@@ -63,6 +104,11 @@ class DatabaseManager:
                 address=address,
             )
             session.add(user)
+            try:
+                session.flush()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ValueError(f"Database constraint violation: {exc.orig}") from exc
             return user
 
     def get_user_by_email_hash(self, email_hash):

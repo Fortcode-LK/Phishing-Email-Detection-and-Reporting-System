@@ -8,7 +8,7 @@ interface DomainBarChartProps {
   domains: TopSenderDomain[];
 }
 
-export default function DomainBarChart({ domains }: DomainBarChartProps) {
+export default function DomainBarChart({ domains }: DomainBarChartProps) {2
   if (domains.length === 0) return null;
 
   const maxCount = Math.max(1, ...domains.map((d) => d.count));

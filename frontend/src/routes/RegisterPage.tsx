@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import RegisterForm from "../components/RegisterForm";
 
 export default function RegisterPage() {
@@ -65,7 +66,15 @@ export default function RegisterPage() {
             </ol>
           </div>
 
-          <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-slate-900/40 rounded-full border border-slate-800/50">
+          <Link
+            to="/login"
+            className="mt-6 w-full h-14 bg-primary hover:bg-primary/90 active:scale-[0.98] text-white font-bold rounded-xl transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-xl">login</span>
+            Go to Login
+          </Link>
+
+          <div className="mt-4 flex items-center gap-2 px-4 py-2 bg-slate-900/40 rounded-full border border-slate-800/50">
             <span className="material-symbols-outlined text-primary text-base">
               verified_user
             </span>

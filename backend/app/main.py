@@ -6,12 +6,20 @@ Run from the backend/app/ directory:
 from __future__ import annotations
 
 import hashlib
+import logging
 import sys
 from pathlib import Path
 
 from datetime import datetime, timezone
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger("phishing_shield")
 
 # ── Resolve paths so imports and DB work from any CWD ────────────────────────
 _APP_DIR = Path(__file__).parent.resolve()
@@ -69,6 +77,19 @@ db.ensure_admin_user(
     password_hash=hashlib.sha256("admin".encode("utf-8")).hexdigest(),
 )
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(">>> %s %s", request.method, request.url.path)
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("Unhandled exception during %s %s", request.method, request.url.path)
+        raise
+    status = response.status_code
+    level = logging.WARNING if status >= 400 else logging.INFO
+    logger.log(level, "<<< %s %s → %d", request.method, request.url.path, status)
+    return response
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _sha256(value: str) -> str:
@@ -108,6 +129,7 @@ def me(current_user: dict = Depends(get_current_user)):
 @app.post("/api/register", response_model=RegisterResponse, status_code=201)
 def register(body: RegisterRequest):
     """Register a new user account."""
+    logger.debug("Register attempt — email=%s", body.email)
     email_hash = _sha256(body.email)
     password_hash = _sha256(body.password)
 
@@ -122,17 +144,20 @@ def register(body: RegisterRequest):
         )
     except ValueError as exc:
         msg = str(exc).lower()
+        logger.warning("Register ValueError for email=%s: %s", body.email, exc)
         if "already exists" in msg:
             raise HTTPException(
                 status_code=409,
                 detail={"error": "User with this email already exists"},
             )
         raise HTTPException(status_code=400, detail={"error": str(exc)})
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
+        logger.exception("Unexpected error during registration for email=%s", body.email)
         raise HTTPException(
             status_code=500, detail={"error": "Internal server error"}
         ) from exc
 
+    logger.info("User registered successfully — id=%d email=%s", user.id, body.email)
     return RegisterResponse(id=user.id, email=body.email)
 
 
@@ -150,7 +175,8 @@ def get_predictions(
     """
     try:
         records = db.get_user_predictions(current_user["user_id"], limit=limit)
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
+        logger.exception("Error fetching predictions for user_id=%s", current_user["user_id"])
         raise HTTPException(
             status_code=500, detail={"error": "Internal server error"}
         ) from exc
@@ -179,7 +205,8 @@ def get_user_summary(
     """Return accurate per-user aggregate stats and daily trend data."""
     try:
         summary = db.get_user_summary(current_user["user_id"], trend_days=trend_days)
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
+        logger.exception("Error fetching summary for user_id=%s", current_user["user_id"])
         raise HTTPException(
             status_code=500, detail={"error": "Internal server error"}
         ) from exc
@@ -229,7 +256,8 @@ def get_admin_predictions(
     """Return system-wide scan history across all users (admin)."""
     try:
         records = db.get_all_predictions(limit=limit)
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
+        logger.exception("Error fetching admin predictions")
         raise HTTPException(
             status_code=500, detail={"error": "Internal server error"}
         ) from exc
@@ -242,7 +270,8 @@ def get_admin_metrics(current_user: dict = Depends(get_current_user)):
     """Return global aggregate metrics for the admin dashboard."""
     try:
         metrics = db.get_system_metrics()
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
+        logger.exception("Error fetching admin metrics")
         raise HTTPException(
             status_code=500, detail={"error": "Internal server error"}
         ) from exc

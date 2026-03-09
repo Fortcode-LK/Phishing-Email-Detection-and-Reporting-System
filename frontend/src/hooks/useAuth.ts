@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   decodeToken,
@@ -16,7 +17,6 @@ export interface AuthState {
 }
 
 export function useAuth(): AuthState {
-  // Initialise from whatever is already in localStorage
   const [state, setState] = useState<{
     isLoggedIn: boolean;
     userId: number | null;
@@ -34,6 +34,7 @@ export function useAuth(): AuthState {
   });
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const login = useCallback(
     (token: string) => {
@@ -51,9 +52,10 @@ export function useAuth(): AuthState {
 
   const logout = useCallback(() => {
     removeToken();
+    queryClient.clear();
     setState({ isLoggedIn: false, userId: null, userEmail: null });
     navigate("/login");
-  }, [navigate]);
+  }, [navigate, queryClient]);
 
   return { ...state, login, logout };
 }
