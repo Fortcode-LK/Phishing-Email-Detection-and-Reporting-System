@@ -198,7 +198,7 @@ class PhishingDetector:
             subject = msg.get('subject', '')
             
             body = self._extract_body(msg)
-            
+            body = body[:50_000] if body and len(body) > 50_000 else body
             body = self._remove_invisible_unicode(body)
             
             original_sender = self.get_original_sender(body, msg)

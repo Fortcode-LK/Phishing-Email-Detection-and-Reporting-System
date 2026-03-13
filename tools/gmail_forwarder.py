@@ -6,6 +6,12 @@ from email.parser import BytesParser
 import getpass
 import sys
 
+def _imap_connect(gmail_user, gmail_password, folder):
+    mail = imaplib.IMAP4_SSL('imap.gmail.com')
+    mail.login(gmail_user, gmail_password)
+    mail.select(folder)
+    return mail
+
 def fetch_and_forward_gmail(gmail_user, gmail_password, 
                             smtp_host='localhost', smtp_port=1025,
                             folder='INBOX', limit=5, search_criteria='ALL'):
@@ -13,11 +19,8 @@ def fetch_and_forward_gmail(gmail_user, gmail_password,
     print(f"Connecting to Gmail IMAP server...")
     
     try:
-        mail = imaplib.IMAP4_SSL('imap.gmail.com')
-        mail.login(gmail_user, gmail_password)
+        mail = _imap_connect(gmail_user, gmail_password, folder)
         print(f"✓ Successfully logged in as {gmail_user}")
-        
-        mail.select(folder)
         print(f"✓ Selected folder: {folder}")
         
         status, messages = mail.search(None, search_criteria)
@@ -36,8 +39,28 @@ def fetch_and_forward_gmail(gmail_user, gmail_password,
             print(f"{'-'*70}")
             print(f"Processing email {i}/{len(email_ids)}...")
             print(f"{'-'*70}")
-            
-            status, msg_data = mail.fetch(email_id, '(RFC822)')
+
+            # Reconnect if connection was dropped by Gmail
+            for attempt in range(3):
+                try:
+                    status, msg_data = mail.fetch(email_id, '(RFC822)')
+                    break
+                except (imaplib.IMAP4.abort, OSError):
+                    print(f"  Connection dropped, reconnecting (attempt {attempt+1})...")
+                    try:
+                        mail = _imap_connect(gmail_user, gmail_password, folder)
+                    except Exception:
+                        pass
+            else:
+                print(f"✗ Could not fetch email {i} after 3 attempts, skipping.")
+                print()
+                continue
+
+            if not msg_data or not msg_data[0]:
+                print(f"✗ Empty response for email {i}, skipping.")
+                print()
+                continue
+
             raw_email = msg_data[0][1]
             
             msg = email.message_from_bytes(raw_email, policy=policy.default)
@@ -47,16 +70,20 @@ def fetch_and_forward_gmail(gmail_user, gmail_password,
             print(f"Date: {msg['Date']}")
             
             try:
-                with smtplib.SMTP(smtp_host, smtp_port) as smtp:
-                    smtp.send_message(msg)
+                payload = raw_email if len(raw_email) <= 512_000 else raw_email[:512_000]
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as smtp:
+                    smtp.sendmail(gmail_user, [gmail_user], payload)
                     print(f"✓ Forwarded to {smtp_host}:{smtp_port}")
             except Exception as e:
                 print(f"✗ Failed to forward: {e}")
             
             print()
         
-        mail.close()
-        mail.logout()
+        try:
+            mail.close()
+            mail.logout()
+        except Exception:
+            pass
         print(f"\n{'='*70}")
         print(f"Done! Processed {len(email_ids)} email(s)")
         print(f"Check the phishing detector terminal for classification results.")
