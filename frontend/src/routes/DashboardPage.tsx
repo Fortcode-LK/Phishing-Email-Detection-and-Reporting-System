@@ -1,8 +1,11 @@
 // src/routes/DashboardPage.tsx
+import { useEffect, useMemo, useState } from "react";
 import { useScanHistory } from "../hooks/useScanHistory";
 import { useUserSummary } from "../hooks/useUserSummary";
+import { decodeToken } from "../lib/auth";
 import AuthHeader from "../components/AuthHeader";
 import EmailAlertsToggle from "../components/EmailAlertsToggle";
+import FirstLoginSetupModal from "../components/FirstLoginSetupModal";
 import WhitelistManager from "../components/WhitelistManager";
 import ScanTrendChart from "../components/charts/ScanTrendChart";
 import RiskDonutChart from "../components/charts/RiskDonutChart";
@@ -70,12 +73,40 @@ function ErrorState({
 }
 
 export default function DashboardPage() {
+  const [showSetupModal, setShowSetupModal] = useState(false);
   const { data, isLoading, isError, error, refetch } =
     useScanHistory(50);
   const summaryQuery = useUserSummary();
 
+  const firstSetupKey = useMemo(() => {
+    const payload = decodeToken();
+    if (!payload?.sub) {
+      return null;
+    }
+    return `phishing_shield_setup_seen_${payload.sub}`;
+  }, []);
+
+  useEffect(() => {
+    if (!firstSetupKey) {
+      return;
+    }
+    const seen = localStorage.getItem(firstSetupKey) === "1";
+    if (!seen) {
+      setShowSetupModal(true);
+    }
+  }, [firstSetupKey]);
+
+  function handleFinishSetup() {
+    if (firstSetupKey) {
+      localStorage.setItem(firstSetupKey, "1");
+    }
+    setShowSetupModal(false);
+  }
+
   return (
     <div className="min-h-screen bg-mesh text-slate-100 font-display">
+      <FirstLoginSetupModal open={showSetupModal} onFinish={handleFinishSetup} />
+
       {/* Top bar */}
       <AuthHeader title="Dashboard" />
 
