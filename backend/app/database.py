@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Dict, List
 
 from sqlalchemy import create_engine, func, select, text
@@ -10,7 +11,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base, EmailEvent, Prediction, TrustedDomain, User
 
-DATABASE_URL = "sqlite:///phishing_detector.db"
+_DB_PATH = Path(__file__).resolve().parents[2] / "phishing_detector.db"
+DATABASE_URL = f"sqlite:///{_DB_PATH}"
 
 
 class DatabaseManager:
@@ -156,6 +158,13 @@ class DatabaseManager:
             return enabled
 
     def log_email_event(self, user_id, sender_domain, is_forwarded=False, message_id_hash=None):
+        if message_id_hash:
+            with self._session_scope() as session:
+                existing = session.scalar(
+                    select(EmailEvent).where(EmailEvent.messageIdHash == message_id_hash)
+                )
+                if existing:
+                    return existing
         with self._session_scope() as session:
             event = EmailEvent(
                 userId=user_id,
@@ -172,7 +181,7 @@ class DatabaseManager:
                 raise ValueError("EmailEvent does not exist")
 
             if session.scalar(select(Prediction).where(Prediction.emailEventId == email_event_id)):
-                raise ValueError("Prediction already exists for this EmailEvent")
+                return None
 
             prediction = Prediction(
                 emailEventId=email_event_id,

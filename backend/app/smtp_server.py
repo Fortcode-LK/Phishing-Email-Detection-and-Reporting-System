@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import re
 import smtplib
 import traceback
 from email import policy
@@ -139,6 +140,21 @@ def handle_smtp_email(sender_email, recipients, raw_message):
     original_sender = extracted.get("original_sender")
     original_domain = get_sender_domain(original_sender) if original_sender else None
 
+    if not original_sender:
+        try:
+            raw_msg_obj = BytesParser(policy=policy.default).parsebytes(
+                raw_message if isinstance(raw_message, bytes) else raw_message.encode(errors="ignore")
+            )
+            from_header = raw_msg_obj.get("From", "")
+            from_match = re.search(
+                r"([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})", from_header, re.IGNORECASE
+            )
+            if from_match:
+                original_sender = from_match.group(1).lower()
+                original_domain = get_sender_domain(original_sender)
+        except Exception as exc:
+            print(f"WARN      failed From-header parse for user_id={user.id}: {exc}")
+
     check_address = original_sender if original_sender else sender_email
     check_domain  = original_domain if original_domain else get_sender_domain(sender_email)
 
@@ -163,7 +179,7 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         risk_level = "LOW"
         reason = "trusted_domain"
         print(
-            f"TRUSTED  user_id={user.id} | {trusted_address} → skipping model"
+            f"TRUSTED  user_id={user.id} | {trusted_address} -> skipping model"
         )
     else:
         prediction = DETECTOR.classify_email(extracted["subject"], extracted["body"])
@@ -294,7 +310,7 @@ def main() -> None:
     REPLY_CFG["from_addr"] = args.reply_from
     if args.reply:
         print(
-            f"Auto-reply  ENABLED → relay {args.reply_host}:{args.reply_port} "
+            f"Auto-reply  ENABLED -> relay {args.reply_host}:{args.reply_port} "
             f"from <{args.reply_from}>"
         )
     DB_MANAGER = DatabaseManager()
