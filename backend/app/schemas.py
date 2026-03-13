@@ -121,3 +121,13 @@ class AdminMetricsOut(BaseModel):
     total_legitimate: int
     phishing_ratio: float
     top_sender_domains: list[TopSenderDomain]
+
+
+# ── Email alerts (/api/user/alerts) ───────────────────────────────────────────
+
+class EmailAlertsOut(BaseModel):
+    email_alerts_enabled: bool
+
+
+class EmailAlertsUpdate(BaseModel):
+    email_alerts_enabled: bool

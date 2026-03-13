@@ -2,6 +2,7 @@
 import { useScanHistory } from "../hooks/useScanHistory";
 import { useUserSummary } from "../hooks/useUserSummary";
 import AuthHeader from "../components/AuthHeader";
+import EmailAlertsToggle from "../components/EmailAlertsToggle";
 import WhitelistManager from "../components/WhitelistManager";
 import ScanTrendChart from "../components/charts/ScanTrendChart";
 import RiskDonutChart from "../components/charts/RiskDonutChart";
@@ -103,6 +104,9 @@ export default function DashboardPage() {
 
         {/* Trusted domains whitelist */}
         <WhitelistManager />
+
+        {/* Email scan alerts toggle */}
+        <EmailAlertsToggle />
 
         {/* States */}
         {isLoading && <Spinner />}

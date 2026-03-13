@@ -72,14 +72,19 @@ def send_scan_reply(
     phishing_probability: float,
     risk_level: str,
     reason: str,
+    user_id: int | None = None,
 ) -> None:
     """Send a scan-result email back to the user's forwarding address.
 
-    Uses smtplib (stdlib) so no extra dependencies are needed.
-    Failures are logged but never propagate — the reply is best-effort.
+    Only sends when both the global --reply flag AND the user's per-account
+    email alerts preference are enabled.
     """
     if not REPLY_CFG.get("enabled"):
         return
+
+    if user_id is not None and DB_MANAGER is not None:
+        if not DB_MANAGER.get_email_alerts_enabled(user_id):
+            return
 
     pct = phishing_probability * 100
     if predicted_label == "phishing":
@@ -189,6 +194,7 @@ def handle_smtp_email(sender_email, recipients, raw_message):
         phishing_probability=phishing_probability,
         risk_level=risk_level,
         reason=reason,
+        user_id=user.id,
     )
 
     return "250 OK - processed successfully"

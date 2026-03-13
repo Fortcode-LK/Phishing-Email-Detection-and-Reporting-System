@@ -37,6 +37,8 @@ from schemas import (  # noqa: E402
     AddWhitelistRequest,
     AdminMetricsOut,
     AdminScanRecordOut,
+    EmailAlertsOut,
+    EmailAlertsUpdate,
     LoginRequest,
     LoginResponse,
     RegisterRequest,
@@ -214,7 +216,25 @@ def get_user_summary(
 
 
 # ── Whitelist routes (protected) ─────────────────────────────────────────────
+@app.get("/api/user/alerts", response_model=EmailAlertsOut)
+def get_email_alerts(current_user: dict = Depends(get_current_user)):
+    """Return the current user's email alert preference."""
+    enabled = db.get_email_alerts_enabled(current_user["user_id"])
+    return EmailAlertsOut(email_alerts_enabled=enabled)
 
+
+@app.put("/api/user/alerts", response_model=EmailAlertsOut)
+def set_email_alerts(body: EmailAlertsUpdate, current_user: dict = Depends(get_current_user)):
+    """Enable or disable email scan-result alerts for the current user."""
+    try:
+        enabled = db.set_email_alerts_enabled(current_user["user_id"], body.email_alerts_enabled)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail={"error": str(exc)})
+    logger.info("Email alerts %s for user_id=%d", "enabled" if enabled else "disabled", current_user["user_id"])
+    return EmailAlertsOut(email_alerts_enabled=enabled)
+
+
+# ── Whitelist routes (protected) ───────────────────────────────────────────────
 @app.get("/api/whitelist", response_model=list[WhitelistItem])
 def get_whitelist(current_user: dict = Depends(get_current_user)):
     """Return the current user's trusted domains."""

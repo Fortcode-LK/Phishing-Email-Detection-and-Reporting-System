@@ -25,6 +25,7 @@ class DatabaseManager:
         )
         Base.metadata.create_all(self.engine)
         self._migrate_remove_mobile_unique()
+        self._migrate_add_email_alerts()
         self._Session = sessionmaker(
             bind=self.engine,
             future=True,
@@ -69,6 +70,15 @@ class DatabaseManager:
             conn.execute(text('DROP TABLE "User"'))
             conn.execute(text('ALTER TABLE "User_migration_tmp" RENAME TO "User"'))
             conn.commit()
+
+    def _migrate_add_email_alerts(self) -> None:
+        with self.engine.connect() as conn:
+            schema = conn.execute(
+                text("SELECT sql FROM sqlite_master WHERE type='table' AND name='User'")
+            ).scalar() or ""
+            if "emailAlertsEnabled" not in schema:
+                conn.execute(text('ALTER TABLE "User" ADD COLUMN "emailAlertsEnabled" BOOLEAN NOT NULL DEFAULT 0'))
+                conn.commit()
 
     @contextmanager
     def _session_scope(self) -> Session:
@@ -129,6 +139,21 @@ class DatabaseManager:
                 role="admin",
             )
             session.add(admin)
+
+    def get_email_alerts_enabled(self, user_id: int) -> bool:
+        with self._session_scope() as session:
+            user = session.get(User, user_id)
+            if not user:
+                return False
+            return bool(user.emailAlertsEnabled)
+
+    def set_email_alerts_enabled(self, user_id: int, enabled: bool) -> bool:
+        with self._session_scope() as session:
+            user = session.get(User, user_id)
+            if not user:
+                raise ValueError("User not found")
+            user.emailAlertsEnabled = enabled
+            return enabled
 
     def log_email_event(self, user_id, sender_domain, is_forwarded=False, message_id_hash=None):
         with self._session_scope() as session:

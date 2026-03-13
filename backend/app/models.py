@@ -28,6 +28,7 @@ class User(Base):
     lastName = Column(String)
     mobileNumber = Column(String)
     address = Column(String)
+    emailAlertsEnabled = Column(Boolean, default=False, nullable=False)
     createdAt = Column(DateTime, default=func.now())
     updatedAt = Column(DateTime, default=func.now(), onupdate=func.now())
 
