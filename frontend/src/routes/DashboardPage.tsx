@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useScanHistory } from "../hooks/useScanHistory";
 import { useUserSummary } from "../hooks/useUserSummary";
+import { useEmailAlerts } from "../hooks/useEmailAlerts";
 import { decodeToken } from "../lib/auth";
 import AuthHeader from "../components/AuthHeader";
 import EmailAlertsToggle from "../components/EmailAlertsToggle";
@@ -74,9 +75,12 @@ function ErrorState({
 
 export default function DashboardPage() {
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [dashboardNotice, setDashboardNotice] = useState<string | null>(null);
   const { data, isLoading, isError, error, refetch } =
     useScanHistory(50);
+  const emailAlertsQuery = useEmailAlerts();
   const summaryQuery = useUserSummary();
+  const latestScanId = useMemo(() => data?.[0]?.email_event_id ?? null, [data]);
 
   const firstSetupKey = useMemo(() => {
     const payload = decodeToken();
@@ -95,6 +99,88 @@ export default function DashboardPage() {
       setShowSetupModal(true);
     }
   }, [firstSetupKey]);
+
+  useEffect(() => {
+    if (!data || data.length === 0) {
+      return;
+    }
+
+    // Keep browser notifications tied to the dashboard page lifecycle.
+    const seenKey = "phishing_shield_seen_dashboard_scan_ids";
+    const raw = sessionStorage.getItem(seenKey);
+
+    if (!raw) {
+      sessionStorage.setItem(
+        seenKey,
+        JSON.stringify(data.map((record) => record.email_event_id))
+      );
+      return;
+    }
+
+    const seen = new Set<number>((raw ? JSON.parse(raw) : []) as number[]);
+
+    const unseenRecords = data.filter((record) => !seen.has(record.email_event_id));
+    data.forEach((record) => seen.add(record.email_event_id));
+    sessionStorage.setItem(seenKey, JSON.stringify(Array.from(seen)));
+
+    if (unseenRecords.length === 0) {
+      return;
+    }
+
+    const newPhishing = unseenRecords.filter(
+      (record) => record.prediction?.predicted_label === "phishing"
+    ).length;
+
+    if (newPhishing > 0) {
+      setDashboardNotice(
+        `${unseenRecords.length} new scan${unseenRecords.length > 1 ? "s" : ""} received (${newPhishing} phishing)`
+      );
+    } else {
+      setDashboardNotice(
+        `${unseenRecords.length} new scan${unseenRecords.length > 1 ? "s" : ""} received`
+      );
+    }
+
+    if (!emailAlertsQuery.data?.email_alerts_enabled) {
+      return;
+    }
+
+    if (!("Notification" in window)) {
+      return;
+    }
+
+    const showNotifications = () => {
+      unseenRecords.slice(0, 3).forEach((record) => {
+        const isPhishing = record.prediction?.predicted_label === "phishing";
+        new Notification(isPhishing ? "Phishing Alert" : "New Email Scan", {
+          body: isPhishing
+            ? `Suspicious email from ${record.sender_domain}`
+            : `Scanned email from ${record.sender_domain}`,
+          tag: `scan-${record.email_event_id}`,
+        });
+      });
+    };
+
+    if (Notification.permission === "granted") {
+      showNotifications();
+      return;
+    }
+
+    if (Notification.permission === "default") {
+      void Notification.requestPermission().then((permission) => {
+        if (permission === "granted") {
+          showNotifications();
+        }
+      });
+    }
+  }, [data, emailAlertsQuery.data?.email_alerts_enabled]);
+
+  useEffect(() => {
+    if (latestScanId == null) {
+      return;
+    }
+    void summaryQuery.refetch();
+  }, [latestScanId, summaryQuery]);
 
   function handleFinishSetup() {
     if (firstSetupKey) {
@@ -121,6 +207,21 @@ export default function DashboardPage() {
             Overview of all emails analysed by Phishing Shield.
           </p>
         </div>
+
+        {dashboardNotice && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
+            <p className="text-sm font-medium text-slate-100 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-lg">notifications</span>
+              {dashboardNotice}
+            </p>
+            <button
+              onClick={() => setDashboardNotice(null)}
+              className="text-xs font-semibold text-slate-300 hover:text-white"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Summary cards — driven by full DB aggregates */}
         {summaryQuery.data && <SummaryCards summary={summaryQuery.data} />}

@@ -6,8 +6,23 @@ export default function EmailAlertsToggle() {
 
   const enabled = data?.email_alerts_enabled ?? false;
 
-  function handleToggle() {
-    mutation.mutate(!enabled);
+  async function handleToggle() {
+    const nextEnabled = !enabled;
+
+    // Ask notification permission from a click handler so browsers allow the prompt.
+    if (
+      nextEnabled &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // Ignore prompt failures and still save the alert preference.
+      }
+    }
+
+    mutation.mutate(nextEnabled);
   }
 
   return (

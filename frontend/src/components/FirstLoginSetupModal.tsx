@@ -18,6 +18,25 @@ export default function FirstLoginSetupModal({
 
   const enabled = data?.email_alerts_enabled ?? false;
 
+  async function handleToggleNotifications() {
+    const nextEnabled = !enabled;
+
+    // Ask notification permission from a click handler so browsers allow the prompt.
+    if (
+      nextEnabled &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // Ignore prompt failures and still save the alert preference.
+      }
+    }
+
+    mutation.mutate(nextEnabled);
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div
@@ -73,7 +92,7 @@ export default function FirstLoginSetupModal({
               </div>
 
               <button
-                onClick={() => mutation.mutate(!enabled)}
+                onClick={handleToggleNotifications}
                 disabled={isLoading || mutation.isPending}
                 aria-label={enabled ? "Disable email notifications" : "Enable email notifications"}
                 className={[

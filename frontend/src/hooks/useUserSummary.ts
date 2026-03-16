@@ -40,7 +40,11 @@ export function useUserSummary(trendDays = 14) {
         throw { status, message } satisfies UserSummaryError;
       }
     },
-    staleTime: 1000 * 45,
+    staleTime: 1000 * 5,
+    refetchInterval: 1000 * 5,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
   });
 }

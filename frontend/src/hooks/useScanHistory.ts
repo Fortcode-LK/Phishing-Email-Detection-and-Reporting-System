@@ -45,7 +45,11 @@ export function useScanHistory(limit = 50) {
         throw { status, message } satisfies ScanHistoryError;
       }
     },
-    staleTime: 1000 * 45, // 45 seconds
+    staleTime: 1000 * 5, // Keep data fresh for near-real-time dashboard updates
+    refetchInterval: 1000 * 5, // Poll while dashboard is open
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
   });
 }

@@ -33,7 +33,6 @@ class PhishingDetector:
             self.whitelist_domains = {
                 'google.com',
                 'accounts.google.com',
-                'gmail.com',
                 'redditmail.com',
                 'reddit.com',
                 'github.com',
@@ -596,7 +595,7 @@ def main():
             print("Domain whitelisting disabled")
         elif args.whitelist:
             whitelist_domains = {
-                'google.com', 'gmail.com', 'redditmail.com', 'reddit.com',
+                'google.com', 'redditmail.com', 'reddit.com',
                 'github.com', 'microsoft.com', 'amazon.com', 'paypal.com',
                 'apple.com', 'linkedin.com', 'twitter.com', 'facebook.com'
             }

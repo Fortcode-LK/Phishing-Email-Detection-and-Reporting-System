@@ -237,7 +237,6 @@ def _resolve_whitelist(args) -> Optional[set[str]]:
         return None
     defaults = {
         "google.com",
-        "gmail.com",
         "redditmail.com",
         "reddit.com",
         "github.com",
