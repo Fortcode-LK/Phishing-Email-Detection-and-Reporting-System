@@ -1,0 +1,44 @@
+
+=== META BUILD ===
+Score: -0.029344803752036464
+Mods: Serration, Split Chamber, Point Strike, Vital Sense, Hunter Munitions, Vile Acceleration, Malignant Force, Rime Rounds
+Metrics:
+{
+  "directDPS": 8721.685380698438,
+  "statusDPS": 5536.278455399998,
+  "burstDPS": 26545.158819899996,
+  "sustainedDPS": 17443.370761396876,
+  "reloadTime": 2.15,
+  "magazineSize": 75,
+  "damagePerMagazine": 109377.37125,
+  "damagePerAmmo": 1458.36495,
+  "firingUptime": 0.6571206026584471,
+  "critConsistency": 0.6,
+  "statusApplicationRate": 15.216871999999999,
+  "heavyAttackDamage": 7291.82475,
+  "comboRetention": 0,
+  "effectiveHealthTarget": 0,
+  "timeToKill": null
+}
+
+=== OPTIMIZER BEST ===
+Score: -0.019403893112195356
+Mods: Vital Sense, Point Strike, Thermite Rounds, Split Chamber, Vile Acceleration, Malignant Force, Serration, Rime Rounds
+Metrics:
+{
+  "directDPS": 10692.68772661899,
+  "statusDPS": 0,
+  "burstDPS": 32544.064767899996,
+  "sustainedDPS": 21385.37545323798,
+  "reloadTime": 2.15,
+  "magazineSize": 75,
+  "damagePerMagazine": 134095.42124999998,
+  "damagePerAmmo": 1787.93895,
+  "firingUptime": 0.6571206026584471,
+  "critConsistency": 0.6,
+  "statusApplicationRate": 19.366927999999998,
+  "heavyAttackDamage": 8939.69475,
+  "comboRetention": 0,
+  "effectiveHealthTarget": 0,
+  "timeToKill": null
+}
